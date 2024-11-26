@@ -140,32 +140,30 @@ class Program
 		}
 
 		var mmr_history = new System.Text.StringBuilder();
-		mmr_history.AppendFormat("\"config\"\r\n{{\r\n\t\"bindings\"\r\n\t{{\r\n\t\t\"JOY1\"\t\t\"TBD\"\r\n\t}}\r\n");
-		mmr_history.AppendFormat("\t\"matches\"\r\n\t{{\r\n");
+		//mmr_history.AppendFormat("\"config\"\r\n{{\r\n\t\"bindings\"\r\n\t{{\r\n\t\t\"JOY1\"\t\t\"TBD\"\r\n\t}}\r\n");
+		//mmr_history.AppendFormat("\t\"matches\"\r\n\t{{\r\n");
 
+		mmr_history.AppendFormat("matchid,date,mmr,outcome\n");
 		/// use some lazy reflection to print out details
 		var fields = typeof( CMsgDOTAGetPlayerMatchHistoryResponse.Match ).GetProperties(
 			BindingFlags.Public | BindingFlags.Instance);
 
+		ulong first = 0;
+
 		for ( int x = 0 ; x < Matches.Count; x++ )
 		{
 			var m = Matches[x]; /// CMsgDOTAMatch
-			Console.WriteLine( "recent_{0} = {{", x + 1);
-			foreach ( var field in fields.OrderBy( f => f.Name ) )
-			{
-				var value = field.GetValue( m, null );
 
-				Console.WriteLine( "  {0}: {1}", field.Name, demo ? "*" : value );
+			if (m.match_id > first) {
+				first = m.match_id;
 			}
-			Console.WriteLine( "},");
-
-			mmr_history.AppendFormat("\t\t{0} {{ date {1} \t mmr {2,5} \t outcome {3,5} }}\r\n",
+			mmr_history.AppendFormat("{0},{1},{2,5},{3,5}\n",
 			  m.match_id, m.start_time, m.rank_change + m.previous_rank, m.rank_change);
 		}
-		mmr_history.AppendFormat("\t}}\r\n}}\r\n");
+		//mmr_history.AppendFormat("\t}}\r\n}}\r\n");
 
 		/// export history to user_keys_accountid_slot3.vcfg file for ShowMMR dashboard DOTA mod
-		var dota_cfg = "user_keys_" + account.ToString() + "_slot3.vcfg";
+		var dota_cfg = "data_" + account.ToString() + "_" + first + ".csv";
 		File.WriteAllText( (demo ? "demo/" : "") + dota_cfg, mmr_history.ToString() );
 
 		Console.WriteLine();
@@ -330,8 +328,10 @@ class Program
 		isRunning  = true;
 		Matches.AddRange(msg.Body.matches);
 
-		if (matches_remaining <= 0)
+		Console.WriteLine("Matches count was {0}", msg.Body.matches.Count);
+		if (matches_remaining <= 0 || msg.Body.matches.Count < 1)
 		{
+			Console.WriteLine("We're done");
 			/// we've got everything we need, we can disconnect from steam now
 			Thread.Sleep( 1000 );
 			steamClient.Disconnect();
@@ -340,7 +340,7 @@ class Program
 		{
 			Thread.Sleep( 1000 );
 			var start_at_match_id = msg.Body.matches[msg.Body.matches.Count -1].match_id;
-			Console.WriteLine( "Matches remaining: {0} start at: {1}", matches_remaining, demo ? "*" : start_at_match_id);
+			Console.WriteLine( "Matches remaining: {0} start at: {1}", matches_remaining, demo ? "*" : start_at_match_id.ToString());
 			var matches_requested = Math.Min(20, matches_remaining);
 			matches_remaining -= matches_requested;
 
